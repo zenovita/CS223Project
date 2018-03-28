@@ -1,4 +1,0 @@
-
-*** Running vivado
-    with args -log GameClass.vds -m64 -mode batch -messageDb vivado.pb -notrace -source GameClass.tcl
-
