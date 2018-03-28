@@ -1,0 +1,1058 @@
+`timescale 1ns / 1ps
+
+module GameClass(input logic up, down, clk, showHighScore,
+             output logic sh_cp, st_cp, reset, DS, OE,
+             output logic [7:0] rows,
+             output logic a, b, c, d, e, f, g, dp,
+             output logic [3:0] an);
+    // these parts are modified by Alper Kilicaslan.
+    // related to obtaining the walls.
+    logic [2:0] wallx=7;
+    logic [7:0] Otype=0;
+    logic [2:0] OtypeNext = 0; 
+    logic [2:0] wallxNext = 7;
+    logic clk_en;
+    logic gameOver=1;
+    
+    // related to moving the dinosaur
+    logic  [2:0] y = 1;
+    logic  [2:0] yNext  = 1;
+    
+    // these parts are taken from Alper Sahistan's code.
+    // related to score measurement
+    logic [30:0] count = 0;
+    logic [30:0] D = 20000000;
+    logic [30:0] DNext = 20000000;  
+    logic [13:0] score=0;
+    logic [13:0] scoreNext=0;
+    logic [13:0] highScore=0;
+    logic [13:0] toSevSeg=0;
+    logic [3:0] difficultyCounter=0;
+    logic [3:0] difficultyCounterNext=0;
+    
+    // random state selection to get a random stage
+    logic [30:0] randomSeed= 30'b10010010110101011101001001010; // it contains random binary numbers 
+    logic [5:0] index = 1; // which state we are using from our random state number array
+    
+    // creating objects
+    EightXEight displayer(clk, x, y, wallx,Otype, sh_cp, st_cp, reset, DS, OE, rows);
+    sevSeg4digit scoreDisplay(clk, toSevSeg, a, b, c, d, e, f, g, dp, an);
+    
+    //a counter for random
+    always@ (posedge clk) 
+    begin
+        count <= count + 1;
+        if(index==19)
+            index=1;
+        else
+            index++;
+        if (count==D) //D: last value for counter
+            count <= 30'd0; //N: length of counter
+        if (count==30'd0)
+            clk_en <= 1'b1;
+        else
+            clk_en <= 1'b0;
+    end
+    // 
+    always@ (posedge clk)
+        if (clk_en==1'b1)
+        begin
+            y<=yNext;
+            Otype<=OtypeNext;
+            wallx<=wallxNext;
+            score<=scoreNext;
+            difficultyCounter<=difficultyCounterNext;
+            D<=DNext;    
+        end
+    // these parts are modified by Alper Kilicaslan.
+always_ff@(posedge clk)
+    begin
+        if(~gameOver)
+        begin
+            toSevSeg<=score;
+            
+            //moving the car
+            if ((up))
+            begin
+                 yNext=y+1; 
+            end  
+            if (down)
+            begin
+                 yNext=y-1;
+            end
+           
+            // random walls
+            if(wallx==0)
+            begin
+                scoreNext=score+1;
+                difficultyCounterNext= difficultyCounter+1;
+                wallxNext=7;
+                OtypeNext= randomSeed[(index)]*2 + randomSeed[(index-1)] + randomSeed[(index-1)]*2 + randomSeed[(index)]*2;     // random wall algorithm. can be changed to OtypeNext +1 in order to see every single walls in the game.
+            end
+            else
+                wallxNext = wallx-1;
+        end
+            
+        else//Game over 
+        begin
+            if(up)
+            begin
+                // resetting everything
+                scoreNext=0;
+                DNext = 20000000;
+                yNext=1;
+                wallxNext=7;
+                difficultyCounterNext=0;
+             end
+                
+                if(highScore<score)//sets highScore
+                    highScore<=score;
+                if(showHighScore && gameOver)//Displays Highscore
+                    toSevSeg<=highScore;
+                else
+                    toSevSeg<=score;
+        end
+        
+        //timing
+        if(difficultyCounter==5)//Game gets faster after each 5 points
+        begin
+            difficultyCounterNext=0;
+            DNext=D-1000000;
+        end      
+    end
+    
+    // collision part is written by Alper Kilicaslan.
+    //collisions
+    always_comb
+    begin
+            
+        case(Otype)
+        0:
+        begin 
+            if((x==wallx && y==0) ||  (x==wallx && y==3) ||(x==wallx && y==4) ||(x==wallx && y==5) ||(x==wallx && y==6) ||(x==wallx && y==7))
+                gameOver=1;
+            else
+                gameOver=0;
+        end
+        
+        1:
+        begin
+            if((x==wallx && y==0) ||  (x==wallx && y==1) ||(x==wallx && y==4) ||(x==wallx && y==5) ||(x==wallx && y==6) ||(x==wallx && y==7))
+                gameOver=1;
+            else
+                gameOver=0;
+        end
+        
+        2:
+        begin
+            if((x==wallx && y==0) ||  (x==wallx && y==1) ||(x==wallx && y==2) ||(x==wallx && y==5) ||(x==wallx && y==6) ||(x==wallx && y==7))
+                gameOver=1;
+            else
+                gameOver=0;
+        
+        end
+        3:
+        begin
+            if((x==wallx && y==0) ||  (x==wallx && y==1) ||(x==wallx && y==2) ||(x==wallx && y==3) ||(x==wallx && y==6) ||(x==wallx && y==7))
+                gameOver=1;
+            else
+                gameOver=0;
+        end
+        
+        4:
+        begin 
+            if((x==wallx && y==0) ||  (x==wallx && y==1) ||(x==wallx && y==2) ||(x==wallx && y==3) ||(x==wallx && y==4) ||(x==wallx && y==5))
+                gameOver=1;
+            else
+                gameOver=0;
+        end
+                
+        5:
+        begin 
+            if((x==wallx && y==2) ||  (x==wallx && y==3) ||(x==wallx && y==4) ||(x==wallx && y==5) ||(x==wallx && y==6) ||(x==wallx && y==7))
+                gameOver=1;
+            else
+                gameOver=0;
+        end
+                
+        6:
+        begin 
+            if((x==wallx && y==0) ||  (x==wallx && y==2) ||(x==wallx && y==4) ||(x==wallx && y==7))
+                gameOver=1;
+            else
+                gameOver=0;
+        end
+        
+        7:
+        begin 
+            if((x==wallx && y==0) ||  (x==wallx && y==3) ||(x==wallx && y==4))
+                gameOver=1;
+            else
+                gameOver=0;
+        end
+        endcase
+    end
+    
+    
+endmodule
+
+
+`timescale 1ns / 1ps
+
+module EightXEight(input logic clk,
+              input logic x,
+              input logic [2:0] y,
+              input logic [2:0] walls,
+              input logic [7:0] wallLogic,
+              output logic sh_cp, st_cp, reset, ds, oe,
+              output logic[7:0] rows);
+
+    //this part is for declaring which array number is which color.
+    logic [23:0] matrix ;
+    logic [7:0] red, green, blue;
+    assign matrix[23:16] = red;
+    assign matrix[15:8]  = green;
+    assign matrix[7:0]   = blue;
+    
+    // these parts are taken from Alper Sahistan's code.
+    logic f;
+    logic e;
+    
+    logic [7:0] counter=0;
+    logic [8:0] index = 3; //i
+    logic [7:0] frame = 0; //d
+    logic [2:0] rowNum= 0; //a
+    
+    always @(posedge clk)
+        counter = counter+1;
+    
+    assign f = counter[7];
+    assign e =~f;
+    
+    always @(posedge e)
+        index = index +1;
+    
+    always_comb
+    begin
+        if (index<4) 
+            reset=0;
+       else
+            reset=1;
+    
+    
+        if (index>3 && index<28) 
+              ds=matrix[index-4];
+        else 
+            ds=0;
+    
+        if (index<28)
+          begin
+              sh_cp=f;                
+              st_cp=e;
+          end
+	   else
+         begin
+           sh_cp=0;
+           st_cp=1;
+         end
+    end
+     
+    // this logic changes the frame
+    always@ (posedge f)
+    begin
+        if (index>28 && index<409)
+            oe<=0;
+	else
+            oe<=1;
+        if (index== 410)
+        begin
+          rowNum <= rowNum+1;
+            if (rowNum==7)
+                frame <= frame+1;
+        end     
+    end
+    
+    
+    //this logic increases the row number
+    always_comb
+    begin
+        if (rowNum==0) begin 
+            rows<=8'b10000000;
+        end
+        else if(rowNum==1)  begin
+            rows<=8'b01000000;
+        end
+        else if (rowNum==2)  begin
+            rows<=8'b00100000;
+        end
+        else if (rowNum==3)  begin
+            rows<=8'b00010000;
+        end
+        else if (rowNum==4)  begin
+            rows<=8'b00001000;
+        end
+        else if (rowNum==5)  begin
+            rows<=8'b00000100;
+        end
+        else if (rowNum==6)  begin
+            rows<=8'b00000010;
+        end
+        else if (rowNum==7) begin
+            rows<=8'b00000001;
+        end
+        else
+            rows<=8'b00000000;
+
+       // this part is written by Alper Kilicaslan.
+       //WALLS AND CAR
+       case(wallLogic)
+            0:begin
+               if(rowNum==0)
+               begin
+                 for (int i =0; i<8 ; i++)
+                     begin
+                        if(i==walls)
+                            red[i]=1;
+                        else
+                           red[i]=0;
+                    end
+                end
+               
+                else if(rowNum==3)
+                begin
+                    for(int i = 0; i<8;i++)
+                    begin
+                        if(i == walls)
+                            red[i]=1;
+                        else
+                            red[i]=0;
+                    end
+                end
+                
+                else if(rowNum==4)
+                begin
+                    for(int i = 0; i<8;i++)
+                    begin
+                        if(i == walls)
+                            red[i]=1;
+                        else
+                            red[i]=0;
+                    end
+                end
+                else if(rowNum==5)
+                begin
+                    for(int i = 0; i<8;i++)
+                    begin
+                        if(i == walls)
+                            red[i]=1;
+                        else
+                            red[i]=0;
+                    end
+                end
+                else if(rowNum==6)
+                begin
+                    for(int i = 0; i<8;i++)
+                    begin
+                        if(i == walls)
+                            red[i]=1;
+                        else
+                            red[i]=0;
+                    end
+                end
+                else if(rowNum==7)
+                begin
+                    for(int i = 0; i<8;i++)
+                    begin
+                        if(i == walls)
+                            red[i]=1;
+                        else
+                            red[i]=0;
+                    end
+                end
+                                                                                               
+                else
+                begin
+                   for (int i =0; i<8 ; i++)
+                   begin
+                      red[i]=0;
+                   end
+                end
+            end
+            
+            
+            1:begin 
+               if(rowNum==0)
+               begin
+                 for (int i =0; i<8 ; i++)
+                     begin
+                        if(i==walls)
+                            red[i]=1;
+                        else
+                           red[i]=0;
+                    end
+                end
+                           
+                else if(rowNum==1)
+                begin
+                    for(int i = 0; i<8;i++)
+                    begin
+                        if(i == walls)
+                            red[i]=1;
+                        else
+                            red[i]=0;
+                    end
+                end
+                  else if(rowNum==4)
+                begin
+                    for(int i = 0; i<8;i++)
+                    begin
+                        if(i == walls)
+                            red[i]=1;
+                        else
+                            red[i]=0;
+                    end
+                end
+                    else if(rowNum==5)
+                begin
+                    for(int i = 0; i<8;i++)
+                    begin
+                        if(i == walls)
+                            red[i]=1;
+                        else
+                            red[i]=0;
+                    end
+                end
+                else if(rowNum==6)
+                    begin
+                        for(int i = 0; i<8;i++)
+                        begin
+                            if(i == walls)
+                                red[i]=1;
+                            else
+                                red[i]=0;
+                        end
+                    end
+                else if(rowNum==7)
+                begin
+                    for(int i = 0; i<8;i++)
+                    begin
+                        if(i == walls)
+                            red[i]=1;
+                        else
+                            red[i]=0;
+                    end
+                end
+                                           
+                else
+                begin
+                   for (int i =0; i<8 ; i++)
+                   begin
+                      red[i]=0;
+                   end
+                end
+            end
+            
+            
+            2:begin
+               if(rowNum==0)
+               begin
+                 for (int i =0; i<8 ; i++)
+                     begin
+                        if(i==walls)
+                            red[i]=1;
+                        else
+                           red[i]=0;
+                    end
+                end
+               
+                else if(rowNum==1)
+                begin
+                    for(int i = 0; i<8;i++)
+                    begin
+                        if(i == walls)
+                            red[i]=1;
+                        else
+                            red[i]=0;
+                    end
+                end
+            else if(rowNum==2)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            else if(rowNum==5)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            else if(rowNum==6)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+        else if(rowNum==7)
+        begin
+            for(int i = 0; i<8;i++)
+            begin
+                if(i == walls)
+                    red[i]=1;
+                else
+                    red[i]=0;
+            end
+        end
+                                                               
+        else
+        begin
+           for (int i =0; i<8 ; i++)
+           begin
+              red[i]=0;
+           end
+        end
+        end
+            
+      3:begin
+       if(rowNum==0)
+       begin
+         for (int i =0; i<8 ; i++)
+             begin
+                if(i==walls)
+                    red[i]=1;
+                else
+                   red[i]=0;
+            end
+        end
+                           
+        else if(rowNum==1)
+        begin
+            for(int i = 0; i<8;i++)
+            begin
+                if(i == walls)
+                    red[i]=1;
+                else
+                    red[i]=0;
+            end
+        end
+        else if(rowNum==2)
+        begin
+            for(int i = 0; i<8;i++)
+            begin
+                if(i == walls)
+                    red[i]=1;
+                else
+                    red[i]=0;
+            end
+        end
+        else if(rowNum==3)
+        begin
+            for(int i = 0; i<8;i++)
+            begin
+                if(i == walls)
+                    red[i]=1;
+                else
+                    red[i]=0;
+            end
+        end
+        else if(rowNum==6)
+        begin
+            for(int i = 0; i<8;i++)
+            begin
+                if(i == walls)
+                    red[i]=1;
+                else
+                    red[i]=0;
+            end
+        end
+        else if(rowNum==7)
+            begin
+            for(int i = 0; i<8;i++)
+            begin
+            if(i == walls)
+                red[i]=1;
+            else
+                red[i]=0;
+            end
+            end
+            
+        else
+            begin
+               for (int i =0; i<8 ; i++)
+               begin
+                  red[i]=0;
+               end
+           
+        end
+       end     
+       
+       
+       4:begin
+           if(rowNum==0)
+           begin
+             for (int i =0; i<8 ; i++)
+                 begin
+                    if(i==walls)
+                        red[i]=1;
+                    else
+                       red[i]=0;
+                end
+            end
+           
+            else if(rowNum==1)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            else if(rowNum==2)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            else if(rowNum==3)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            else if(rowNum==4)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            else if(rowNum==5)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+                                                                                           
+            else
+            begin
+               for (int i =0; i<8 ; i++)
+               begin
+                  red[i]=0;
+               end
+            end
+        end
+        
+        5:begin
+           if(rowNum==2)
+           begin
+             for (int i =0; i<8 ; i++)
+                 begin
+                    if(i==walls)
+                        red[i]=1;
+                    else
+                       red[i]=0;
+                end
+            end
+           
+            else if(rowNum==3)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            else if(rowNum==4)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            else if(rowNum==5)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            else if(rowNum==6)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            else if(rowNum==7)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+                                                                                           
+            else
+            begin
+               for (int i =0; i<8 ; i++)
+               begin
+                  red[i]=0;
+               end
+            end
+        end
+       
+        6:begin
+           if(rowNum==0)
+           begin
+             for (int i =0; i<8 ; i++)
+                 begin
+                    if(i==walls)
+                        red[i]=1;
+                    else
+                       red[i]=0;
+                end
+            end
+           
+            else if(rowNum==2)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            else if(rowNum==4)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            
+            else if(rowNum==7)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+                                                                                           
+            else
+            begin
+               for (int i =0; i<8 ; i++)
+               begin
+                  red[i]=0;
+               end
+            end
+        end
+       
+        7: begin
+           if(rowNum==0)
+           begin
+             for (int i =0; i<8 ; i++)
+                 begin
+                    if(i==walls)
+                        red[i]=1;
+                    else
+                       red[i]=0;
+                end
+            end
+           
+            else if(rowNum==3)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            else if(rowNum==4)
+            begin
+                for(int i = 0; i<8;i++)
+                begin
+                    if(i == walls)
+                        red[i]=1;
+                    else
+                        red[i]=0;
+                end
+            end
+            
+                                                                                           
+            else
+            begin
+               for (int i =0; i<8 ; i++)
+               begin
+                  red[i]=0;
+               end
+            end
+        end
+      endcase     
+      
+      //CAR
+       if(rowNum == (y)) begin  
+       for (int i =0; i<8 ; i++)
+           begin
+            
+            if (i == (x))
+                green[i] = 1;
+            else
+                green[i] = 0;
+            
+           end
+       end
+       else
+         begin
+            for (int i =0; i<8 ; i++)
+            begin
+               green[i] = 0;
+            end
+         end  
+   end
+endmodule
+
+
+
+`timescale 1ns / 1ps
+
+// this class is taken from the lab assignment (lab04)
+module sevSeg4digit(
+ input clk,
+ input [13:0] score,        // 4 values for 4 digits (decimal value)
+ output a, b, c, d, e, f, g, dp, //individual LED output for the 7-segment along with the digital point
+ output [3:0] an   // anode: 4-bit enable signal (active low)
+ );
+     // this part is taken from Alper Sahistan's code.
+     logic [3:0] digitArr [0:3];
+     logic [3:0] in0; 
+     logic [3:0] in1; 
+     logic [3:0] in2; 
+     logic [3:0] in3;
+     int decScore = score;
+     
+     assign digitArr[0] = decScore % 10;
+     assign digitArr[1] = (decScore / 10) % 10;
+     assign digitArr[2] = (decScore / 100) % 10;
+     assign digitArr[3] = (decScore / 1000) % 1000;
+     
+     assign in0 = digitArr[0];
+     assign in1 = digitArr[1];
+     assign in2 = digitArr[2];
+     assign in3 = digitArr[3];
+// divide system clock (100Mhz for Basys3) by 2^N using a counter, which allows us to multiplex at lower speed
+localparam N = 18;
+logic [N-1:0] count = {N{1'b0}}; //initial value
+always@ (posedge clk)
+	count <= count + 1;
+
+ 
+logic [3:0]digit_val; // 7-bit register to hold the current data on output
+logic [3:0]digit_en;  //register for enable vector
+ 
+always_comb
+ begin
+ digit_en = 4'b1111; //default
+ digit_val = in0; //default
+ 
+  case(count[N-1:N-2]) //using only the 2 MSB's of the counter 
+    
+   2'b00 :  //select first 7Seg.
+    begin
+     digit_val = in0;
+     digit_en = 4'b1110;
+    end
+    
+   2'b01:  //select second 7Seg.
+    begin
+     digit_val = in1;
+     digit_en = 4'b1101;
+    end
+    
+   2'b10:  //select third 7Seg.
+    begin
+     digit_val = in2;
+     digit_en = 4'b1011;
+    end
+     
+   2'b11:  //select forth 7Seg.
+    begin
+     digit_val = in3;
+     digit_en = 4'b0111;
+    end
+  endcase
+ end
+ 
+
+//Convert digit number to LED vector. LEDs are active low.
+logic [6:0] sseg_LEDs; 
+always_comb
+ begin 
+  sseg_LEDs = 7'b1111111; //default
+  case(digit_val)
+   4'd0 : sseg_LEDs = 7'b1000000; //to display 0
+   4'd1 : sseg_LEDs = 7'b1111001; //to display 1
+   4'd2 : sseg_LEDs = 7'b0100100; //to display 2
+   4'd3 : sseg_LEDs = 7'b0110000; //to display 3
+   4'd4 : sseg_LEDs = 7'b0011001; //to display 4
+   4'd5 : sseg_LEDs = 7'b0010010; //to display 5
+   4'd6 : sseg_LEDs = 7'b0000010; //to display 6
+   4'd7 : sseg_LEDs = 7'b1111000; //to display 7
+   4'd8 : sseg_LEDs = 7'b0000000; //to display 8
+   4'd9 : sseg_LEDs = 7'b0010000; //to display 9
+   default : sseg_LEDs = 7'b0111111; //dash
+  endcase
+ end
+ 
+assign an = digit_en; 
+assign {g, f, e, d, c, b, a} = sseg_LEDs; 
+assign dp = 1'b1; //turn dp off
+ 
+ 
+endmodule
+
+
+# Clock signal
+set_property PACKAGE_PIN W5 [get_ports clk]							
+	set_property IOSTANDARD LVCMOS33 [get_ports clk]
+	create_clock -add -name sys_clk_pin -period 10.00 -waveform {0 5} [get_ports clk]
+	
+
+
+
+set_property PACKAGE_PIN W19 [get_ports up]						
+	set_property IOSTANDARD LVCMOS33 [get_ports up]
+set_property PACKAGE_PIN T17 [get_ports down]						
+	set_property IOSTANDARD LVCMOS33 [get_ports down]
+
+
+## Switches
+set_property PACKAGE_PIN V17 [get_ports {showHighScore}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {showHighScore}]
+
+
+
+#Sch name = JB1
+set_property PACKAGE_PIN A14 [get_ports {rows[7]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {rows[7]}]
+#Sch name = JB2
+set_property PACKAGE_PIN A16 [get_ports {rows[6]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {rows[6]}]
+#Sch name = JB3
+set_property PACKAGE_PIN B15 [get_ports {rows[5]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {rows[5]}]
+#Sch name = JB4
+set_property PACKAGE_PIN B16 [get_ports {rows[4]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {rows[4]}]
+
+
+#Sch name = JB7
+set_property PACKAGE_PIN A15 [get_ports {rows[3]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {rows[3]}]
+#Sch name = JB8
+set_property PACKAGE_PIN A17 [get_ports {rows[2]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {rows[2]}]
+#Sch name = JB9
+set_property PACKAGE_PIN C15 [get_ports {rows[1]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {rows[1]}]
+#Sch name = JB10 
+set_property PACKAGE_PIN C16 [get_ports {rows[0]}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {rows[0]}]
+
+
+#Pmod Header JC
+#Sch name = JC1
+set_property PACKAGE_PIN K17 [get_ports {DS}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {DS}]
+#Sch name = JC2
+set_property PACKAGE_PIN M18 [get_ports {OE}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {OE}]
+#Sch name = JC3
+set_property PACKAGE_PIN N17 [get_ports {st_cp}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {st_cp}]
+#Sch name = JC4
+set_property PACKAGE_PIN P18 [get_ports {sh_cp}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {sh_cp}]
+#Sch name = JC7
+set_property PACKAGE_PIN L17 [get_ports {reset}]					
+	set_property IOSTANDARD LVCMOS33 [get_ports {reset}]
+	
+#7 segment display
+    set_property PACKAGE_PIN W7 [get_ports {a}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {a}]
+    set_property PACKAGE_PIN W6 [get_ports {b}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {b}]
+    set_property PACKAGE_PIN U8 [get_ports {c}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {c}]
+    set_property PACKAGE_PIN V8 [get_ports {d}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {d}]
+    set_property PACKAGE_PIN U5 [get_ports {e}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {e}]
+    set_property PACKAGE_PIN V5 [get_ports {f}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {f}]
+    set_property PACKAGE_PIN U7 [get_ports {g}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {g}]
+    
+    set_property PACKAGE_PIN V7 [get_ports dp]                            
+        set_property IOSTANDARD LVCMOS33 [get_ports dp]
+    
+    set_property PACKAGE_PIN U2 [get_ports {an[0]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {an[0]}]
+    set_property PACKAGE_PIN U4 [get_ports {an[1]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {an[1]}]
+    set_property PACKAGE_PIN V4 [get_ports {an[2]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {an[2]}]
+    set_property PACKAGE_PIN W4 [get_ports {an[3]}]                    
+        set_property IOSTANDARD LVCMOS33 [get_ports {an[3]}]
+
+
